@@ -1,7 +1,8 @@
 import requests
 import logging
+import os
 import asyncio
-from aiortc import RTCPeerConnection
+from aiortc import RTCPeerConnection, RTCSessionDescription
 from ..logger import setup_logger
 
 # Set up the logger with color and timestamp support
@@ -12,12 +13,12 @@ DEFAULT_HEYGEN_URL = "https://api.heygen.com"
 
 class StreamingApiConnection:
     def __init__(self, api_key: str = None, base_url: str = DEFAULT_HEYGEN_URL):
-        self.api_key = api_key
+        self.api_key = api_key or os.environ.get("HEYGEN_API_KEY")
         self.base_url = base_url
         self.session_info = None
         self.peer_connection = None
 
-    async def create_new_session(self):
+    async def create_new_session(self, callback):
         logger.debug("Creating new session.")
 
         url = f"{self.base_url}/v1/streaming.new"
@@ -37,7 +38,7 @@ class StreamingApiConnection:
         response = requests.post(url, json=payload, headers=headers)
 
         data = response.json()
-        self.session_info = data["session"]
+        self.session_info = data["data"]
 
         self.peer_connection = RTCPeerConnection(
             configuration={"iceServers": self.session_info["ice_servers2"]}
@@ -45,11 +46,17 @@ class StreamingApiConnection:
 
         @self.peer_connection.on("track")
         def on_track(track):
-            logger.debug("Track received")
-            print("Track received", track.kind)
+            logger.debug("Track received", track)
+            if track.kind == "video":
+                callback(track)
+            else:
+                logger.debug("Ignoring non video track")
 
         await self.peer_connection.setRemoteDescription(
-            sdp=self.session_info["sdp"], type="offer"
+            sessionDescription=RTCSessionDescription(
+                sdp=self.session_info["sdp"]["sdp"], 
+                type=self.session_info["sdp"]["type"]
+            )
         )
 
     async def start_streaming_session(self):

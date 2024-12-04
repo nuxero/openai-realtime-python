@@ -4,6 +4,7 @@ import logging
 import os
 from builtins import anext
 from typing import Any
+from aiortc import MediaStreamTrack
 
 from agora.rtc.rtc_connection import RTCConnection, RTCConnInfo
 from attr import dataclass
@@ -13,6 +14,7 @@ from agora_realtime_ai_api.rtc import Channel, ChatMessage, RtcEngine, RtcOption
 from .logger import setup_logger
 from .realtime.struct import ErrorMessage, FunctionCallOutputItemParam, InputAudioBufferCommitted, InputAudioBufferSpeechStarted, InputAudioBufferSpeechStopped, InputAudioTranscription, ItemCreate, ItemCreated, ItemInputAudioTranscriptionCompleted, RateLimitsUpdated, ResponseAudioDelta, ResponseAudioDone, ResponseAudioTranscriptDelta, ResponseAudioTranscriptDone, ResponseContentPartAdded, ResponseContentPartDone, ResponseCreate, ResponseCreated, ResponseDone, ResponseFunctionCallArgumentsDelta, ResponseFunctionCallArgumentsDone, ResponseOutputItemAdded, ResponseOutputItemDone, ServerVADUpdateParams, SessionUpdate, SessionUpdateParams, SessionUpdated, Voices, to_json
 from .realtime.connection import RealtimeApiConnection
+from .heygen.connection import StreamingApiConnection
 from .tools import ClientToolCallResponse, ToolContext
 from .utils import PCMWriter
 
@@ -57,7 +59,9 @@ class RealtimeKitAgent:
     engine: RtcEngine
     channel: Channel
     connection: RealtimeApiConnection
+    avatar: StreamingApiConnection
     audio_queue: asyncio.Queue[bytes] = asyncio.Queue()
+    video_track: MediaStreamTrack
 
     message_queue: asyncio.Queue[ResponseAudioTranscriptDelta] = (
         asyncio.Queue()
@@ -68,6 +72,9 @@ class RealtimeKitAgent:
     tools: ToolContext | None = None
 
     _client_tool_futures: dict[str, asyncio.Future[ClientToolCallResponse]]
+
+    def set_video_track(self, video_track: MediaStreamTrack):
+        self.video_track=video_track
 
     @classmethod
     async def setup_and_run_agent(
@@ -118,25 +125,35 @@ class RealtimeKitAgent:
                         f"Error: {start_session_message.error}"
                     )
 
+                avatar = StreamingApiConnection()
+
                 agent = cls(
                     connection=connection,
+                    avatar=avatar,
                     tools=tools,
                     channel=channel,
                 )
+
+                await avatar.create_new_session(callback=agent.set_video_track)
+                await avatar.start_streaming_session()
+
                 await agent.run()
 
         finally:
             await channel.disconnect()
             await connection.close()
+            await avatar.close_session()
 
     def __init__(
         self,
         *,
         connection: RealtimeApiConnection,
+        avatar: StreamingApiConnection,
         tools: ToolContext | None,
         channel: Channel,
     ) -> None:
         self.connection = connection
+        self.avatar = avatar
         self.tools = tools
         self._client_tool_futures = {}
         self.channel = channel
@@ -271,11 +288,7 @@ class RealtimeKitAgent:
                     logger.debug(f"TMS:ResponseAudioDelta: response_id:{message.response_id},item_id: {message.item_id}")
                 case ResponseAudioTranscriptDelta():
                     # logger.info(f"Received text message {message=}")
-                    asyncio.create_task(self.channel.chat.send_message(
-                        ChatMessage(
-                            message=to_json(message), msg_id=message.item_id
-                        )
-                    ))
+                    asyncio.create_task(self.avatar.send_text(message.delta))
 
                 case ResponseAudioTranscriptDone():
                     logger.info(f"Text message done: {message=}")
