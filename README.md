@@ -2,6 +2,21 @@
 
 This project demonstrates how to deliver ultra-low latency access to OpenAI with exceptional audio quality using Agora's SD-RTN and OpenAI's Realtime API. By integrating Agora's SDK with OpenAI's Realtime API, it ensures seamless performance and minimal delay across the globe.
 
+## In Progress
+
+This fork is under active development. The goal is to add support for avatars powered by [HeyGen](https://www.heygen.com/). 
+
+[x] Integration with [HeyGen Streaming v1: Raw WebRTC](https://docs.heygen.com/docs/streaming-api-integration-raw-webrtc-approach)
+[] Rewrite integration using aiohttp
+[] Add the ability to send video streams to Agora channel
+
+This is the first attempt to integrate OpenAI Realtime API with HeyGen Streaming API. One concern though is that since audio and video streams would come from two different sources, these might be out of sync. Ideally, these should come from the same service.
+
+Other approaches to test:
+
+* Replace OpenAI Realtime API connection with HeyGen Streaming API chat capabilities.
+* Build a custom agent service that connects to Agora Channel and retrieves audio and video streams from HeyGen.
+
 ## Prerequisites
 
 Before running the demo, ensure you have the following installed and configured:
