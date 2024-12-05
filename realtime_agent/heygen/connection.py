@@ -1,8 +1,9 @@
+from typing import List
 import requests
 import logging
 import os
 import asyncio
-from aiortc import RTCPeerConnection, RTCSessionDescription
+from aiortc import RTCPeerConnection, RTCSessionDescription, RTCConfiguration, RTCIceServer
 from ..logger import setup_logger
 
 # Set up the logger with color and timestamp support
@@ -10,9 +11,24 @@ logger = setup_logger(name=__name__, log_level=logging.INFO)
 
 DEFAULT_HEYGEN_URL = "https://api.heygen.com"
 
+def _get_ice_servers(ice_servers_list) -> List[RTCIceServer]:
+    _ice_servers = list()
+    for ice_server in ice_servers_list:
+        logger.info(f"Adding ice server: {ice_server}")
+        _ice_servers.append(RTCIceServer(
+            urls=ice_server["urls"],
+            username=ice_server.get("username") or None,
+            credential=ice_server.get("credential") or None,
+            credentialType=ice_server.get("credentialType")
+        ))
+    return _ice_servers
+
 
 class StreamingApiConnection:
-    def __init__(self, api_key: str = None, base_url: str = DEFAULT_HEYGEN_URL):
+    def __init__(
+        self, api_key: str = None, 
+        base_url: str = DEFAULT_HEYGEN_URL
+    ):
         self.api_key = api_key or os.environ.get("HEYGEN_API_KEY")
         self.base_url = base_url
         self.session_info = None
@@ -40,24 +56,34 @@ class StreamingApiConnection:
         data = response.json()
         self.session_info = data["data"]
 
+        ice_servers = _get_ice_servers(self.session_info["ice_servers2"])
+
+        configuration = RTCConfiguration(iceServers=ice_servers)
+
         self.peer_connection = RTCPeerConnection(
-            configuration={"iceServers": self.session_info["ice_servers2"]}
+            configuration=configuration
         )
 
         @self.peer_connection.on("track")
         def on_track(track):
-            logger.debug("Track received", track)
+            logger.info(f"Received {track.kind} track: {track.id}")
             if track.kind == "video":
                 callback(track)
             else:
                 logger.debug("Ignoring non video track")
 
-        await self.peer_connection.setRemoteDescription(
-            sessionDescription=RTCSessionDescription(
-                sdp=self.session_info["sdp"]["sdp"], 
-                type=self.session_info["sdp"]["type"]
-            )
+        
+        remote_description = RTCSessionDescription(
+            sdp=self.session_info["sdp"]["sdp"], 
+            type=self.session_info["sdp"]["type"]
         )
+
+        try:
+            await self.peer_connection.setRemoteDescription(
+                sessionDescription=remote_description
+            )
+        except:
+            logger.error("Failed to set remote description")
 
     async def start_streaming_session(self):
         logger.debug("Starting streaming session.")

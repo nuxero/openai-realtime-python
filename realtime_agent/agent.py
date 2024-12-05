@@ -74,6 +74,7 @@ class RealtimeKitAgent:
     _client_tool_futures: dict[str, asyncio.Future[ClientToolCallResponse]]
 
     def set_video_track(self, video_track: MediaStreamTrack):
+        logger.info(f"Setting video track: {video_track.id}")
         self.video_track=video_track
 
     @classmethod
@@ -142,7 +143,7 @@ class RealtimeKitAgent:
         finally:
             await channel.disconnect()
             await connection.close()
-            await avatar.close_session()
+            avatar.close_session()
 
     def __init__(
         self,
@@ -282,13 +283,13 @@ class RealtimeKitAgent:
             # logger.info(f"Received message {message=}")
             match message:
                 case ResponseAudioDelta():
-                    # logger.info("Received audio message")
+                    logger.info("Received audio message")
                     self.audio_queue.put_nowait(base64.b64decode(message.delta))
                     # loop.call_soon_threadsafe(self.audio_queue.put_nowait, base64.b64decode(message.delta))
                     logger.debug(f"TMS:ResponseAudioDelta: response_id:{message.response_id},item_id: {message.item_id}")
                 case ResponseAudioTranscriptDelta():
-                    # logger.info(f"Received text message {message=}")
-                    asyncio.create_task(self.avatar.send_text(message.delta))
+                    logger.info(f"Received text message {message=}")
+                    self.avatar.send_text(message.delta)
 
                 case ResponseAudioTranscriptDone():
                     logger.info(f"Text message done: {message=}")
