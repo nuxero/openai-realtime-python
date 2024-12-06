@@ -122,7 +122,7 @@ class StreamingApiConnection:
             "x-api-key": self.api_key,
         }
 
-        self.session.post(url, json=payload, headers=headers)
+        await self.session.post(url, json=payload, headers=headers)
 
     async def close_session(self):
         logger.debug("Closing session.")
