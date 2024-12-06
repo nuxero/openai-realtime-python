@@ -1,5 +1,5 @@
 from typing import List
-import requests
+import aiohttp
 import logging
 import os
 import asyncio
@@ -33,6 +33,7 @@ class StreamingApiConnection:
         self.base_url = base_url
         self.session_info = None
         self.peer_connection = None
+        self.session = aiohttp.ClientSession()
 
     async def create_new_session(self, callback):
         logger.debug("Creating new session.")
@@ -51,9 +52,9 @@ class StreamingApiConnection:
             "x-api-key": self.api_key,
         }
 
-        response = requests.post(url, json=payload, headers=headers)
+        response = await self.session.post(url, json=payload, headers=headers)
 
-        data = response.json()
+        data = await response.json()
         self.session_info = data["data"]
 
         ice_servers = _get_ice_servers(self.session_info["ice_servers2"])
@@ -104,9 +105,9 @@ class StreamingApiConnection:
             "x-api-key": self.api_key,
         }
 
-        requests.post(url, json=payload, headers=headers)
+        await self.session.post(url, json=payload, headers=headers)
 
-    def send_text(self, text: str):
+    async def send_text(self, text: str):
         logger.debug("Sending text", text)
 
         url = f"{self.base_url}/v1/streaming.task"
@@ -121,9 +122,9 @@ class StreamingApiConnection:
             "x-api-key": self.api_key,
         }
 
-        requests.post(url, json=payload, headers=headers)
+        self.session.post(url, json=payload, headers=headers)
 
-    def close_session(self):
+    async def close_session(self):
         logger.debug("Closing session.")
 
         url = f"{self.base_url}/v1/streaming.stop"
@@ -138,4 +139,4 @@ class StreamingApiConnection:
              "x-api-key": self.api_key,
         }
 
-        requests.post(url, json=payload, headers=headers)
+        await self.session.post(url, json=payload, headers=headers)

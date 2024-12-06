@@ -143,7 +143,7 @@ class RealtimeKitAgent:
         finally:
             await channel.disconnect()
             await connection.close()
-            avatar.close_session()
+            await avatar.close_session()
 
     def __init__(
         self,
@@ -289,7 +289,7 @@ class RealtimeKitAgent:
                     logger.debug(f"TMS:ResponseAudioDelta: response_id:{message.response_id},item_id: {message.item_id}")
                 case ResponseAudioTranscriptDelta():
                     logger.info(f"Received text message {message=}")
-                    self.avatar.send_text(message.delta)
+                    asyncio.create_task(self.avatar.send_text(message.delta))
 
                 case ResponseAudioTranscriptDone():
                     logger.info(f"Text message done: {message=}")
