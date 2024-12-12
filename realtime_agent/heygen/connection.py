@@ -35,8 +35,9 @@ class StreamingApiConnection:
         self.session_info = None
         self.peer_connection = None
         self.session = aiohttp.ClientSession()
-        self.recorder = MediaRecorder('./myfile.mp4')
+        self.recorder = MediaRecorder('./output_avatar_stream.mp4')
         self.relay = MediaRelay()
+        self.write_stream = os.environ.get("WRITE_AVATAR_STREAM", "false") == "true"
 
     async def create_new_session(self, callback):
         logger.debug("Creating new session.")
@@ -72,16 +73,16 @@ class StreamingApiConnection:
         def on_track(track):
             logger.info(f"Received {track.kind} track: {track.id}")
             if track.kind == "video":
-                self.recorder.addTrack(self.relay.subscribe(track))
+                self.recorder.addTrack(self.relay.subscribe(track)) if self.write_stream else None
                 callback(track)
             elif track.kind == "audio":
-                self.recorder.addTrack(track)
+                self.recorder.addTrack(track) if self.write_stream else None
                 logger.debug("Ignoring non video track")
 
             @track.on("ended")
             async def on_ended():
                 logger.info(f"{track.kind} track {track.id} ended")
-                await self.recorder.stop()
+                await self.recorder.stop() if self.write_stream else None
 
         
         remote_description = RTCSessionDescription(
@@ -93,7 +94,7 @@ class StreamingApiConnection:
             await self.peer_connection.setRemoteDescription(
                 sessionDescription=remote_description
             )
-            await self.recorder.start()
+            await self.recorder.start() if self.write_stream else None
         except:
             logger.error("Failed to set remote description")
 
