@@ -283,16 +283,21 @@ class RealtimeKitAgent:
             # logger.info(f"Received message {message=}")
             match message:
                 case ResponseAudioDelta():
-                    logger.info("Received audio message")
+                    # logger.info("Received audio message")
                     self.audio_queue.put_nowait(base64.b64decode(message.delta))
                     # loop.call_soon_threadsafe(self.audio_queue.put_nowait, base64.b64decode(message.delta))
                     logger.debug(f"TMS:ResponseAudioDelta: response_id:{message.response_id},item_id: {message.item_id}")
                 case ResponseAudioTranscriptDelta():
-                    logger.info(f"Received text message {message=}")
-                    asyncio.create_task(self.avatar.send_text(message.delta))
+                    # logger.info(f"Received text message {message=}")
+                    asyncio.create_task(self.channel.chat.send_message(
+                        ChatMessage(
+                            message=to_json(message), msg_id=message.item_id
+                        )
+                    ))
 
                 case ResponseAudioTranscriptDone():
                     logger.info(f"Text message done: {message=}")
+                    asyncio.create_task(self.avatar.send_text(message.transcript))
                     asyncio.create_task(self.channel.chat.send_message(
                         ChatMessage(
                             message=to_json(message), msg_id=message.item_id

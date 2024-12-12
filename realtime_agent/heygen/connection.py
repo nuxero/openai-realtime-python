@@ -4,6 +4,7 @@ import logging
 import os
 import asyncio
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCConfiguration, RTCIceServer
+from aiortc.contrib.media import MediaRecorder, MediaRelay
 from ..logger import setup_logger
 
 # Set up the logger with color and timestamp support
@@ -34,6 +35,8 @@ class StreamingApiConnection:
         self.session_info = None
         self.peer_connection = None
         self.session = aiohttp.ClientSession()
+        self.recorder = MediaRecorder('./myfile.mp4')
+        self.relay = MediaRelay()
 
     async def create_new_session(self, callback):
         logger.debug("Creating new session.")
@@ -69,9 +72,16 @@ class StreamingApiConnection:
         def on_track(track):
             logger.info(f"Received {track.kind} track: {track.id}")
             if track.kind == "video":
+                self.recorder.addTrack(self.relay.subscribe(track))
                 callback(track)
-            else:
+            elif track.kind == "audio":
+                self.recorder.addTrack(track)
                 logger.debug("Ignoring non video track")
+
+            @track.on("ended")
+            async def on_ended():
+                logger.info(f"{track.kind} track {track.id} ended")
+                await self.recorder.stop()
 
         
         remote_description = RTCSessionDescription(
@@ -83,6 +93,7 @@ class StreamingApiConnection:
             await self.peer_connection.setRemoteDescription(
                 sessionDescription=remote_description
             )
+            await self.recorder.start()
         except:
             logger.error("Failed to set remote description")
 
